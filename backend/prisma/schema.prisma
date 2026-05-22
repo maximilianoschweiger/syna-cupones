@@ -1,0 +1,243 @@
+// This is your Prisma schema file
+// Learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ─── Enums ───────────────────────────────────────────────────────────────────
+
+enum Role {
+  ADMIN
+  USER
+}
+
+enum SignatureStatus {
+  SIGNED
+  UNSIGNED
+  DUBIOUS
+  PENDING
+}
+
+enum Shift {
+  MORNING
+  AFTERNOON
+  NIGHT
+  CLOSING
+  UNKNOWN
+}
+
+enum AlertType {
+  UNSIGNED_THRESHOLD
+  NO_ATTACHMENT
+  DUBIOUS_COUPON
+  MISSING_CLOSING
+  IMAP_ERROR
+  AI_ERROR
+}
+
+enum LogLevel {
+  INFO
+  SUCCESS
+  WARNING
+  ERROR
+}
+
+// ─── Models ──────────────────────────────────────────────────────────────────
+
+model User {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  password  String
+  role      Role     @default(USER)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  auditLogs AuditLog[]
+
+  @@map("users")
+}
+
+model Branch {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  name      String?
+  email     String?
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  emails  Email[]
+  alerts  Alert[]
+
+  @@index([code])
+  @@map("branches")
+}
+
+model Email {
+  id           String   @id @default(cuid())
+  messageId    String?  @unique
+  subject      String
+  senderEmail  String
+  senderName   String?
+  receivedAt   DateTime
+  processed    Boolean  @default(false)
+  processedAt  DateTime?
+  shift        Shift    @default(UNKNOWN)
+  rawDate      String?
+  errorMessage String?
+
+  branchId String?
+  branch   Branch?  @relation(fields: [branchId], references: [id])
+
+  attachments Attachment[]
+  alerts      Alert[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([branchId])
+  @@index([receivedAt])
+  @@index([processed])
+  @@map("emails")
+}
+
+model Attachment {
+  id          String  @id @default(cuid())
+  filename    String
+  contentType String
+  size        Int
+  imageUrl    String?  // Cloudinary URL
+  publicId    String?  // Cloudinary public_id
+  pageCount   Int?     // For PDFs
+  analyzed    Boolean @default(false)
+
+  emailId String
+  email   Email  @relation(fields: [emailId], references: [id], onDelete: Cascade)
+
+  coupons   Coupon[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([emailId])
+  @@map("attachments")
+}
+
+model Coupon {
+  id              String          @id @default(cuid())
+  couponNumber    String?
+  amount          Decimal?        @db.Decimal(12, 2)
+  installments    Int?
+  cardType        String?
+  authCode        String?
+  merchant        String?
+  couponDate      DateTime?
+  signatureStatus SignatureStatus @default(PENDING)
+  aiConfidence    Float?
+  aiRawResponse   Json?
+  notes           String?
+  manualOverride  Boolean         @default(false)
+
+  attachmentId String
+  attachment   Attachment @relation(fields: [attachmentId], references: [id], onDelete: Cascade)
+
+  // Denormalized for faster queries
+  emailId  String?
+  branchId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([attachmentId])
+  @@index([signatureStatus])
+  @@index([branchId])
+  @@index([couponDate])
+  @@index([createdAt])
+  @@map("coupons")
+}
+
+model Alert {
+  id          String    @id @default(cuid())
+  type        AlertType
+  title       String
+  message     String
+  dismissed   Boolean   @default(false)
+  dismissedAt DateTime?
+  dismissedById String?
+  branchCode  String?
+
+  branchId String?
+  branch   Branch? @relation(fields: [branchId], references: [id])
+
+  emailId String?
+  email   Email?  @relation(fields: [emailId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([dismissed])
+  @@index([type])
+  @@map("alerts")
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  action    String
+  entity    String?
+  entityId  String?
+  details   Json?
+  ipAddress String?
+
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+model SystemLog {
+  id        String   @id @default(cuid())
+  level     LogLevel
+  message   String
+  meta      Json?
+  source    String?
+  service   String?
+
+  createdAt DateTime @default(now())
+
+  @@index([level])
+  @@index([createdAt])
+  @@map("system_logs")
+}
+
+model Settings {
+  id                  Int     @id @default(1)
+  imapHost            String  @default("")
+  imapPort            Int     @default(993)
+  imapUser            String  @default("")
+  imapPassword        String  @default("")
+  imapTls             Boolean @default(true)
+  openaiModel         String  @default("gpt-4o")
+  openaiMaxTokens     Int     @default(1000)
+  cronSchedule        String  @default("*/15 * * * *")
+  unsignedThreshold   Int     @default(3)
+  alertNoAttachment   Boolean @default(true)
+  alertDubious        Boolean @default(true)
+  alertMissingClosing Boolean @default(true)
+  alertEmail          String  @default("")
+
+  updatedAt DateTime @updatedAt
+
+  @@map("settings")
+}

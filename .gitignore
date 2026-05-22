@@ -1,0 +1,28 @@
+# Env files
+.env
+.env.local
+.env.production
+
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build
+dist/
+build/
+.next/
+
+# Prisma
+*.db
+*.db-journal
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Claude Code
+.claude/

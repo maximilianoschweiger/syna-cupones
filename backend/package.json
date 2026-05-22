@@ -1,0 +1,44 @@
+{
+  "name": "syna-cupones-backend",
+  "version": "1.0.0",
+  "description": "Syna Coupon Auditing Backend API",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "dev": "nodemon src/index.js",
+    "start": "node src/index.js",
+    "build": "prisma generate",
+    "db:migrate": "prisma migrate deploy",
+    "db:seed": "node prisma/seed.js",
+    "db:studio": "prisma studio"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.10.2",
+    "axios": "^1.6.7",
+    "bcryptjs": "^2.4.3",
+    "cloudinary": "^2.0.1",
+    "cors": "^2.8.5",
+    "date-fns": "^3.3.1",
+    "dotenv": "^16.4.5",
+    "express": "^4.18.3",
+    "express-rate-limit": "^7.2.0",
+    "express-validator": "^7.0.1",
+    "helmet": "^7.1.0",
+    "imapflow": "^1.0.155",
+    "jsonwebtoken": "^9.0.2",
+    "mailparser": "^3.7.0",
+    "multer": "^1.4.5-lts.1",
+    "node-cron": "^3.0.3",
+    "openai": "^4.28.4",
+    "sharp": "^0.33.2",
+    "winston": "^3.12.0",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.0",
+    "prisma": "^5.10.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

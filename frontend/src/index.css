@@ -1,0 +1,205 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    @apply text-white font-sans antialiased;
+    background-color: #0a1628;
+  }
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: #0d1a2e; }
+  ::-webkit-scrollbar-thumb { background: #1c2e48; border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: #00e5a0; }
+}
+
+@layer components {
+  /* ── Login ── */
+  .login-input {
+    @apply w-full text-white placeholder-slate-500 text-sm font-medium
+           rounded-xl px-4 py-3 outline-none border transition-all duration-200;
+    background: rgba(255,255,255,0.05);
+    border-color: rgba(255,255,255,0.08);
+  }
+  .login-input:focus {
+    border-color: rgba(0,229,160,0.5);
+    background: rgba(255,255,255,0.07);
+    box-shadow: 0 0 0 3px rgba(0,229,160,0.08);
+  }
+
+  /* ── Layout cards ── */
+  .card {
+    border-radius: 16px;
+    background: #111d32;
+    border: 1px solid rgba(255,255,255,0.06);
+    box-shadow: 0 4px 24px rgba(0,0,0,0.3);
+  }
+  .card-hover {
+    @apply card transition-all duration-200 cursor-pointer;
+  }
+  .card-hover:hover {
+    border-color: rgba(0,229,160,0.2);
+    box-shadow: 0 4px 24px rgba(0,0,0,0.3), 0 0 20px rgba(0,229,160,0.06);
+    transform: translateY(-1px);
+  }
+
+  /* ── Buttons ── */
+  .btn-primary {
+    @apply font-semibold px-6 py-2.5 rounded-xl transition-all duration-200 active:scale-95
+           disabled:opacity-50 disabled:cursor-not-allowed;
+    background: #00e5a0;
+    color: #08101e;
+  }
+  .btn-primary:hover {
+    background: #00f5ad;
+    box-shadow: 0 0 20px rgba(0,229,160,0.3);
+  }
+  .btn-secondary {
+    @apply font-medium px-6 py-2.5 rounded-xl transition-all duration-200 active:scale-95
+           text-white disabled:opacity-50 disabled:cursor-not-allowed;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.1);
+  }
+  .btn-secondary:hover {
+    background: rgba(255,255,255,0.08);
+    border-color: rgba(0,229,160,0.3);
+  }
+  .btn-ghost {
+    @apply font-medium px-4 py-2 rounded-lg transition-all duration-200 active:scale-95 text-slate-400;
+  }
+  .btn-ghost:hover { @apply text-white; background: rgba(255,255,255,0.05); }
+  .btn-danger {
+    @apply font-semibold px-6 py-2.5 rounded-xl transition-all duration-200 active:scale-95;
+    background: rgba(239,68,68,0.15);
+    color: #f87171;
+    border: 1px solid rgba(239,68,68,0.2);
+  }
+  .btn-danger:hover { background: rgba(239,68,68,0.25); }
+
+  /* ── Inputs ── */
+  .input-field {
+    @apply w-full text-white placeholder-slate-500 rounded-xl px-4 py-2.5 text-sm font-medium
+           outline-none border transition-all duration-200;
+    background: #0d1a2e;
+    border-color: rgba(255,255,255,0.08);
+  }
+  .input-field:focus {
+    border-color: rgba(0,229,160,0.4);
+    box-shadow: 0 0 0 3px rgba(0,229,160,0.07);
+  }
+  select.input-field option { background: #111d32; }
+
+  /* ── Badges ── */
+  .badge-signed {
+    @apply inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold;
+    background: rgba(0,229,160,0.1);
+    color: #00e5a0;
+    border: 1px solid rgba(0,229,160,0.2);
+  }
+  .badge-unsigned {
+    @apply inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold;
+    background: rgba(239,68,68,0.1);
+    color: #f87171;
+    border: 1px solid rgba(239,68,68,0.2);
+  }
+  .badge-dubious {
+    @apply inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold;
+    background: rgba(251,191,36,0.1);
+    color: #fbbf24;
+    border: 1px solid rgba(251,191,36,0.2);
+  }
+  .badge-info {
+    @apply inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold;
+    background: rgba(99,102,241,0.12);
+    color: #818cf8;
+    border: 1px solid rgba(99,102,241,0.2);
+  }
+  .badge-admin {
+    @apply inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold;
+    background: rgba(0,229,160,0.12);
+    color: #00e5a0;
+    border: 1px solid rgba(0,229,160,0.2);
+  }
+  .badge-user {
+    @apply inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold;
+    background: rgba(148,163,184,0.1);
+    color: #94a3b8;
+    border: 1px solid rgba(148,163,184,0.15);
+  }
+
+  /* ── Stat cards ── */
+  .stat-card {
+    @apply card p-6 flex flex-col gap-3;
+  }
+
+  /* ── Table ── */
+  .table-container {
+    @apply card overflow-hidden;
+  }
+  .table-head th {
+    @apply text-left text-xs font-semibold uppercase tracking-widest px-5 py-3.5;
+    color: #64748b;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+    background: rgba(0,0,0,0.2);
+  }
+  .table-row td {
+    @apply px-5 py-4 text-sm text-slate-300;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+  }
+  .table-row:last-child td { border-bottom: none; }
+  .table-row:hover td { background: rgba(255,255,255,0.02); }
+
+  /* ── Nav ── */
+  .nav-link {
+    @apply flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all duration-200;
+    color: #64748b;
+  }
+  .nav-link:hover { color: #e2e8f0; background: rgba(255,255,255,0.04); }
+  .nav-link.active {
+    color: #00e5a0;
+    background: rgba(0,229,160,0.08);
+    border: 1px solid rgba(0,229,160,0.12);
+  }
+  .sidebar-section {
+    @apply text-xs font-semibold uppercase tracking-widest px-3.5 mb-1.5;
+    color: #334155;
+  }
+
+  /* ── Misc ── */
+  .divider { border-color: rgba(255,255,255,0.06); }
+  .page-title { @apply text-2xl font-bold text-white; }
+  .page-subtitle { @apply text-sm; color: #64748b; }
+  .section-title { @apply text-base font-semibold text-white; }
+}
+
+@layer utilities {
+  .text-gradient {
+    background: linear-gradient(135deg, #00e5a0 0%, #00c4b4 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .glow-dot {
+    @apply w-2.5 h-2.5 rounded-full;
+    background: #00e5a0;
+    box-shadow: 0 0 8px rgba(0,229,160,0.8);
+  }
+  .glow-text { text-shadow: 0 0 20px rgba(0,229,160,0.5); }
+}
+
+/* Skeleton */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.skeleton {
+  background: linear-gradient(90deg, #111d32 25%, #162640 50%, #111d32 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 8px;
+}
+
+/* Custom range input */
+input[type="range"] { accent-color: #00e5a0; }
