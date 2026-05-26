@@ -1,78 +1,77 @@
-import cloudinary from 'cloudinary'
+import { v2 as cloudinary } from 'cloudinary'
 import sharp from 'sharp'
 import logger from '../utils/logger.js'
 
-cloudinary.v2.config({
+cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
   api_key: process.env.CLOUDINARY_API_KEY,
   api_secret: process.env.CLOUDINARY_API_SECRET,
 })
 
 /**
- * Upload a buffer to Cloudinary with auto-optimization
- * @param {Buffer} buffer - Image buffer
- * @param {string} folder - Cloudinary folder
- * @param {string} filename - Public ID
- * @returns {Promise<{url: string, publicId: string}>}
+ * Upload an image buffer to Cloudinary with EXIF rotation fix and JPEG normalization.
  */
-async function uploadImage(buffer, folder = 'syna-cupones', filename = null) {
+async function uploadImage(buffer, folder = 'syna-cupones/images') {
+  let processedBuffer
   try {
-    // Pre-process with sharp: normalize orientation, ensure JPEG
-    let processedBuffer
-    try {
-      processedBuffer = await sharp(buffer)
-        .rotate() // Auto-rotate based on EXIF
-        .jpeg({ quality: 90, progressive: true })
-        .toBuffer()
-    } catch {
-      // If sharp fails, use original buffer
-      processedBuffer = buffer
-    }
+    processedBuffer = await sharp(buffer)
+      .rotate()                               // Auto-rotate based on EXIF orientation
+      .jpeg({ quality: 90, progressive: true })
+      .toBuffer()
+  } catch {
+    processedBuffer = buffer                  // If sharp fails, use original
+  }
 
-    return new Promise((resolve, reject) => {
-      const uploadOptions = {
-        folder,
-        resource_type: 'image',
-        use_filename: !!filename,
-        public_id: filename || undefined,
-        unique_filename: !filename,
-        overwrite: false,
-        transformation: [
-          { quality: 'auto:good' },
-          { fetch_format: 'auto' },
-        ],
-      }
-
-      cloudinary.v2.uploader
-        .upload_stream(uploadOptions, (error, result) => {
+  return new Promise((resolve, reject) => {
+    cloudinary.uploader
+      .upload_stream(
+        {
+          folder,
+          resource_type: 'image',
+          unique_filename: true,
+          overwrite: false,
+          transformation: [{ quality: 'auto:good' }, { fetch_format: 'auto' }],
+        },
+        (error, result) => {
           if (error) {
-            logger.error('Cloudinary upload failed', { error: error.message })
+            logger.error('Cloudinary image upload failed', { error: error.message })
             reject(error)
           } else {
             resolve({ url: result.secure_url, publicId: result.public_id })
           }
-        })
-        .end(processedBuffer)
-    })
-  } catch (err) {
-    logger.error('uploadImage error', { error: err.message })
-    throw err
-  }
+        }
+      )
+      .end(processedBuffer)
+  })
 }
 
-async function uploadPDF(buffer, folder = 'syna-cupones/pdfs', filename = null) {
+/**
+ * Upload a PDF to Cloudinary as resource_type 'image' so Cloudinary
+ * automatically renders each page and makes them accessible via pg_{n} URLs.
+ * Returns pageCount from the Cloudinary response.
+ */
+async function uploadPDF(buffer, folder = 'syna-cupones/pdfs') {
   return new Promise((resolve, reject) => {
-    cloudinary.v2.uploader
+    cloudinary.uploader
       .upload_stream(
         {
           folder,
-          resource_type: 'raw',
-          public_id: filename || undefined,
-          unique_filename: !filename,
+          resource_type: 'image',  // Cloudinary processes PDF pages when resource_type=image
+          format: 'jpg',
+          unique_filename: true,
+          overwrite: false,
         },
         (error, result) => {
-          if (error) reject(error)
-          else resolve({ url: result.secure_url, publicId: result.public_id })
+          if (error) {
+            logger.error('Cloudinary PDF upload failed', { error: error.message })
+            reject(error)
+          } else {
+            resolve({
+              url: result.secure_url,
+              publicId: result.public_id,
+              pageCount: result.pages || 1,
+            })
+          }
         }
       )
       .end(buffer)
@@ -80,20 +79,37 @@ async function uploadPDF(buffer, folder = 'syna-cupones/pdfs', filename = null) 
 }
 
 /**
- * Delete a file from Cloudinary
+ * Build the Cloudinary image URL for a specific PDF page.
+ * Cloudinary uses pg_{n} transformation for multi-page PDFs.
+ * Page numbers are 1-based.
  */
-async function deleteFile(publicId, resourceType = 'image') {
-  try {
-    await cloudinary.v2
+function getPdfPageUrl(publicId, pageNumber = 1) {
+  const cloud = process.env.CLOUDINARY_CLOUD_NAME
+  // Strip any .jpg extension already in publicId to avoid double extension
+  const cleanId = publicId.replace(/\.jpg$/, '')
+  return `https://res.cloudinary.com/${cloud}/image/upload/pg_${pageNumber}/${cleanId}.jpg`
 }
 
 /**
- * Get optimized URL for display
+ * Return an optimized URL for display (resized + auto format/quality).
  */
 function getOptimizedUrl(url, width = 800) {
   if (!url || !url.includes('cloudinary.com')) return url
   return url.replace('/upload/', `/upload/w_${width},q_auto,f_auto/`)
 }
 
-module.exports = { uploadImage, uploadPDF, deleteFile, getOptimizedUrl }
-export
+/**
+ * Delete a file from Cloudinary by publicId.
+ */
+async function deleteFile(publicId, resourceType = 'image') {
+  try {
+    const result = await cloudinary.uploader.destroy(publicId, { resource_type: resourceType })
+    logger.info('Cloudinary file deleted', { publicId, result: result.result })
+    return result
+  } catch (err) {
+    logger.error('Cloudinary delete failed', { publicId, error: err.message })
+    throw err
+  }
+}
+
+export { uploadImage, uploadPDF, getPdfPageUrl, getOptimizedUrl, deleteFile }

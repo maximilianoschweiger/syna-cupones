@@ -14,11 +14,11 @@ router.get('/', authMiddleware, async (req, res) => {
     const where = {
       ...(branchId && { branchId }),
       ...(processed !== undefined && { processed: processed === 'true' }),
-      ...(dateFrom || dateTo ? {
+      ...((dateFrom || dateTo) ? {
         receivedAt: {
           ...(dateFrom && { gte: new Date(dateFrom) }),
-          ...(dateTo && { lte: new Date(dateTo + 'T23:59:59Z') }),
-        }
+          ...(dateTo   && { lte: new Date(dateTo + 'T23:59:59Z') }),
+        },
       } : {}),
     }
 
@@ -28,10 +28,10 @@ router.get('/', authMiddleware, async (req, res) => {
         orderBy: { receivedAt: 'desc' },
         include: {
           branch: { select: { code: true, name: true } },
-          _count: { select: { attachments: true } }
-        }
+          _count:  { select: { attachments: true } },
+        },
       }),
-      prisma.email.count({ where })
+      prisma.email.count({ where }),
     ])
 
     res.json({ data: emails, total, page: Number(page), pages: Math.ceil(total / Number(limit)) })
@@ -48,9 +48,9 @@ router.get('/:id', authMiddleware, async (req, res) => {
       include: {
         branch: true,
         attachments: {
-          include: { coupon: true }
-        }
-      }
+          include: { coupons: true },  // fixed: was 'coupon' (singular)
+        },
+      },
     })
     if (!email) return res.status(404).json({ message: 'Mail no encontrado' })
     res.json(email)
@@ -63,7 +63,7 @@ router.get('/:id', authMiddleware, async (req, res) => {
 router.post('/process', authMiddleware, adminMiddleware, async (req, res) => {
   try {
     res.json({ message: 'Procesamiento iniciado en segundo plano' })
-    processMails().catch(err => console.error('Manual process error:', err))
+    processMails().catch((err) => console.error('Manual process error:', err))
   } catch (err) {
     res.status(500).json({ message: err.message })
   }
@@ -72,6 +72,7 @@ router.post('/process', authMiddleware, adminMiddleware, async (req, res) => {
 // GET /api/emails/imap/status
 router.get('/imap/status', authMiddleware, async (req, res) => {
   try {
+    // testImapConnection now loads config itself (no args needed)
     const ok = await testImapConnection()
     res.json({ connected: ok })
   } catch (err) {

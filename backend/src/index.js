@@ -15,6 +15,7 @@ import alertsRoutes from './routes/alerts.js'
 import usersRoutes from './routes/users.js'
 import settingsRoutes from './routes/settings.js'
 import logsRoutes from './routes/logs.js'
+import metricsRoutes from './routes/metrics.js'
 
 const app = express()
 const prisma = new PrismaClient()
@@ -48,6 +49,7 @@ app.use('/api/alerts', alertsRoutes)
 app.use('/api/users', usersRoutes)
 app.use('/api/settings', settingsRoutes)
 app.use('/api/logs', logsRoutes)
+app.use('/api/metrics', metricsRoutes)
 
 // ── Health check ──
 app.get('/health', (req, res) => res.json({ status: 'ok', ts: new Date().toISOString() }))

@@ -147,6 +147,17 @@ model Coupon {
   notes           String?
   manualOverride  Boolean         @default(false)
 
+  // Extended visual validation fields
+  hasDni             Boolean?   // Customer DNI written on coupon
+  hasAclaracion      Boolean?   // Customer name/clarification below signature
+  isPartialSignature Boolean?   // Signature exists but incomplete
+  hasManualWriting   Boolean?   // Any manual handwriting detected
+  missingFields      String[]   // List of missing fields detected by AI
+  ocrText            String?    // Full OCR text extracted from image
+  imageQualityScore  Float?     // 0-1 quality score
+  pageIndex          Int        @default(1)   // PDF page number (1-based)
+  isBatchClose       Boolean    @default(false) // True if this is a batch closing doc
+
   attachmentId String
   attachment   Attachment @relation(fields: [attachmentId], references: [id], onDelete: Cascade)
 
@@ -162,6 +173,7 @@ model Coupon {
   @@index([branchId])
   @@index([couponDate])
   @@index([createdAt])
+  @@index([isBatchClose])
   @@map("coupons")
 }
 

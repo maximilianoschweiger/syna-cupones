@@ -1,79 +1,120 @@
 import OpenAI from 'openai'
 import logger from '../utils/logger.js'
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-})
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
 
 const ANALYSIS_PROMPT = `Eres un experto en análisis de cupones de tarjetas de crédito y débito argentinos.
 
-Analiza esta imagen de cupón(es) y extrae la información de CADA cupón visible.
+Analiza esta imagen y extrae información de TODOS los documentos visibles (cupones y cierres de lote).
 
-Para CADA cupón encontrado, devuelve un JSON con esta estructura exacta:
+Devuelve EXACTAMENTE este JSON (sin markdown, sin texto extra):
 {
-  "coupons": [
+  "documents": [
     {
-      "couponNumber": "número de cupón o null",
-      "amount": número decimal o null,
-      "installments": número entero de cuotas o null,
-      "cardType": "VISA/MASTERCARD/AMEX/NARANJA/CABAL/MAESTRO/otro o null",
-      "authCode": "código de autorización o null",
-      "merchant": "nombre del comercio o null",
-      "couponDate": "fecha en formato YYYY-MM-DD o null",
-      "signatureStatus": "SIGNED/UNSIGNED/DUBIOUS",
-      "confidence": número entre 0 y 1,
-      "signatureNotes": "descripción breve del estado de la firma"
+      "isBatchClose": false,
+      "batchNumber": null,
+      "couponNumber": null,
+      "amount": null,
+      "installments": null,
+      "cardType": null,
+      "authCode": null,
+      "merchant": null,
+      "couponDate": null,
+      "signatureStatus": "UNSIGNED",
+      "hasDni": false,
+      "hasAclaracion": false,
+      "isPartialSignature": false,
+      "hasManualWriting": false,
+      "missingFields": [],
+      "ocrText": "",
+      "confidence": 0.5,
+      "imageQualityScore": 0.5,
+      "signatureNotes": ""
     }
   ],
-  "imageQuality": "GOOD/BLURRY/ROTATED/PARTIAL",
-  "totalCoupons": número de cupones detectados
+  "totalDocuments": 1,
+  "overallImageQuality": "GOOD"
 }
 
-REGLAS para signatureStatus:
-- SIGNED: hay firma claramente visible en el espacio destinado
-- UNSIGNED: el espacio de firma está vacío o en blanco
-- DUBIOUS: firma dudosa, ilegible, muy débil, o imagen no permite determinarlo con certeza
+DEFINICIONES:
 
-REGLAS para confidence:
-- 0.9-1.0: datos muy claros y legibles
-- 0.7-0.9: datos mayormente legibles con alguna duda menor
-- 0.5-0.7: imagen de calidad regular, varios campos dudosos
-- 0.0-0.5: imagen de mala calidad, muchos campos inciertos
+isBatchClose: true si el documento es un CIERRE DE LOTE / BATCH CLOSE / TOTALIZACIÓN DE LOTE, false si es un cupón normal.
 
-Responde SOLO con el JSON, sin texto adicional ni markdown.`
+batchNumber: número de lote si isBatchClose=true, o null.
+
+couponNumber: número de cupón impreso (generalmente 6-12 dígitos), null si no se lee.
+
+amount: monto decimal (ej: 1500.50), null si no se lee.
+
+installments: número de cuotas entero, null si no aplica o no se lee.
+
+cardType: VISA / MASTERCARD / AMEX / NARANJA / CABAL / MAESTRO / TARJETA_X / otro string / null.
+
+authCode: código de autorización alfanumérico, null si no se lee.
+
+merchant: nombre del comercio o sucursal, null si no se lee.
+
+couponDate: fecha en formato YYYY-MM-DD, null si no se lee.
+
+signatureStatus:
+  SIGNED    → hay firma claramente visible en el espacio de firma
+  UNSIGNED  → espacio de firma vacío o en blanco
+  DUBIOUS   → firma dudosa / ilegible / muy débil / imagen no permite determinarlo
+
+hasDni: true si hay un número de DNI del cliente escrito en algún campo del cupón.
+
+hasAclaracion: true si hay nombre o texto aclaratorio manuscrito debajo o junto a la firma.
+
+isPartialSignature: true si hay algo escrito en el área de firma pero es incompleto o poco claro.
+
+hasManualWriting: true si hay escritura manual visible en cualquier parte del cupón (distinta a la firma).
+
+missingFields: lista de campos ausentes/incompletos. Valores posibles: "firma", "dni", "aclaracion", "monto", "fecha", "cuotas", "numero_cupon", "codigo_auth", "comercio".
+  Reglas:
+  - Incluir "firma" si signatureStatus=UNSIGNED
+  - Incluir "dni" si hasDni=false
+  - Incluir "aclaracion" si hasAclaracion=false
+  - Incluir "monto" si amount=null y isBatchClose=false
+  - Incluir "fecha" si couponDate=null
+  - Incluir "cuotas" si installments=null y cardType es de tipo crédito (VISA/MASTERCARD/AMEX/NARANJA/CABAL)
+  - Incluir "numero_cupon" si couponNumber=null
+
+ocrText: TODO el texto legible extraído de la imagen, concatenado. No omitir nada.
+
+confidence:
+  0.9-1.0 → datos muy claros y legibles
+  0.7-0.9 → mayormente legibles con alguna duda menor
+  0.5-0.7 → imagen regular, varios campos dudosos
+  0.0-0.5 → imagen de mala calidad, muchos campos inciertos
+
+imageQualityScore:
+  0.9-1.0 → imagen nítida, bien iluminada, recta
+  0.7-0.9 → imagen aceptable con defectos menores
+  0.5-0.7 → imagen borrosa, inclinada o con mala iluminación
+  0.0-0.5 → imagen muy deficiente (muy borrosa, muy oscura, muy inclinada, parcial)
+
+overallImageQuality: GOOD / BLURRY / ROTATED / PARTIAL / DARK / OVEREXPOSED`
 
 /**
- * Analyze a single coupon image via OpenAI Vision API
- * @param {string} imageUrl - Cloudinary URL of the image
- * @param {string} model - OpenAI model to use
- * @returns {Promise<Array>} Array of analyzed coupons
+ * Analyze a single image (URL) with OpenAI Vision.
+ * Returns an array of analyzed documents (coupons + batch closes).
  */
 async function analyzeCouponImage(imageUrl, model = 'gpt-4o') {
   const MAX_RETRIES = 3
-  let lastError
 
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     try {
-      logger.info(`Analyzing image (attempt ${attempt}/${MAX_RETRIES})`, { imageUrl: imageUrl.slice(0, 60) })
+      logger.info(`AI analysis attempt ${attempt}/${MAX_RETRIES}`, { url: imageUrl.slice(0, 80) })
 
       const response = await openai.chat.completions.create({
         model,
-        max_tokens: 2000,
+        max_tokens: 3000,
         messages: [
           {
             role: 'user',
             content: [
-              {
-                type: 'image_url',
-                image_url: {
-                  url: imageUrl,
-                  detail: 'high',
-                },
-              },
-              {
-                type: 'text',
-                text: ANALYSIS_PROMPT,
-              },
+              { type: 'image_url', image_url: { url: imageUrl, detail: 'high' } },
+              { type: 'text', text: ANALYSIS_PROMPT },
             ],
           },
         ],
@@ -84,68 +125,81 @@ async function analyzeCouponImage(imageUrl, model = 'gpt-4o') {
       if (!content) throw new Error('Empty response from OpenAI')
 
       const parsed = JSON.parse(content)
+      if (!Array.isArray(parsed.documents)) throw new Error('Invalid AI response: missing documents array')
 
-      if (!parsed.coupons || !Array.isArray(parsed.coupons)) {
-        throw new Error('Invalid response structure from AI')
-      }
-
-      logger.info(`AI analysis complete`, {
-        totalCoupons: parsed.totalCoupons,
-        imageQuality: parsed.imageQuality,
+      logger.info('AI analysis complete', {
+        total: parsed.totalDocuments,
+        quality: parsed.overallImageQuality,
       })
 
-      return parsed.coupons.map((coupon) => ({
-        couponNumber: coupon.couponNumber || null,
-        amount: coupon.amount ? parseFloat(coupon.amount) : null,
-        installments: coupon.installments ? parseInt(coupon.installments) : null,
-        cardType: coupon.cardType || null,
-        authCode: coupon.authCode || null,
-        merchant: coupon.merchant || null,
-        couponDate: coupon.couponDate ? new Date(coupon.couponDate) : null,
-        signatureStatus: validateStatus(coupon.signatureStatus),
-        aiConfidence: parseFloat(coupon.confidence) || 0.5,
-        aiRawResponse: coupon,
-      }))
+      return parsed.documents.map(normalizeDocument)
     } catch (err) {
-      lastError = err
       logger.error(`AI analysis attempt ${attempt} failed`, { error: err.message })
-
       if (attempt < MAX_RETRIES) {
-        // Exponential backoff
         await new Promise((r) => setTimeout(r, 1000 * attempt))
       }
     }
   }
 
-  // All retries failed — return a pending placeholder
-  logger.error('AI analysis failed after all retries', { error: lastError?.message })
-  return [
-    {
-      signatureStatus: 'DUBIOUS',
-      aiConfidence: 0,
-      aiRawResponse: { error: lastError?.message },
-    },
-  ]
+  logger.error('AI analysis failed after all retries, returning DUBIOUS placeholder')
+  return [buildPlaceholder()]
 }
 
 /**
- * Analyze a single image and return structured data (used for reanalysis)
+ * Analyze a single image and return the first document (used for reanalysis).
  */
-async function analyzeImage(imageUrl) {
-  const results = await analyzeCouponImage(imageUrl)
-  return results[0] || { signatureStatus: 'DUBIOUS', confidence: 0 }
+async function analyzeImage(imageUrl, model = 'gpt-4o') {
+  const results = await analyzeCouponImage(imageUrl, model)
+  return results[0] || buildPlaceholder()
 }
 
 /**
- * Test OpenAI connection
+ * Test OpenAI connectivity with minimal cost.
  */
 async function testOpenAI() {
   const response = await openai.chat.completions.create({
     model: 'gpt-4o-mini',
-    max_tokens: 10,
+    max_tokens: 5,
     messages: [{ role: 'user', content: 'ping' }],
   })
   return !!response.choices[0]?.message?.content
+}
+
+// ─── Helpers ────────────────────────────────────────────────────────────────
+
+function normalizeDocument(doc) {
+  return {
+    isBatchClose:       !!doc.isBatchClose,
+    batchNumber:        doc.batchNumber || null,
+    couponNumber:       doc.couponNumber || null,
+    amount:             doc.amount != null ? parseFloat(doc.amount) : null,
+    installments:       doc.installments != null ? parseInt(doc.installments) : null,
+    cardType:           doc.cardType || null,
+    authCode:           doc.authCode || null,
+    merchant:           doc.merchant || null,
+    couponDate:         doc.couponDate ? new Date(doc.couponDate) : null,
+    signatureStatus:    validateStatus(doc.signatureStatus),
+    hasDni:             typeof doc.hasDni === 'boolean' ? doc.hasDni : null,
+    hasAclaracion:      typeof doc.hasAclaracion === 'boolean' ? doc.hasAclaracion : null,
+    isPartialSignature: typeof doc.isPartialSignature === 'boolean' ? doc.isPartialSignature : null,
+    hasManualWriting:   typeof doc.hasManualWriting === 'boolean' ? doc.hasManualWriting : null,
+    missingFields:      Array.isArray(doc.missingFields) ? doc.missingFields : [],
+    ocrText:            doc.ocrText || null,
+    aiConfidence:       parseFloat(doc.confidence) || 0.5,
+    imageQualityScore:  parseFloat(doc.imageQualityScore) || null,
+    aiRawResponse:      doc,
+  }
+}
+
+function buildPlaceholder() {
+  return {
+    isBatchClose: false,
+    signatureStatus: 'DUBIOUS',
+    aiConfidence: 0,
+    imageQualityScore: 0,
+    missingFields: ['firma', 'monto', 'fecha'],
+    aiRawResponse: { error: 'AI analysis failed after all retries' },
+  }
 }
 
 function validateStatus(status) {

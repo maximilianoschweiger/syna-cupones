@@ -10,7 +10,7 @@ let isRunning = false
 
 async function getCronSchedule() {
   try {
-    const settings = await prisma.settings.findUnique({ where: { id: 'singleton' } })
+    const settings = await prisma.settings.findUnique({ where: { id: 1 } })
     return settings?.cronSchedule || process.env.CRON_SCHEDULE || '*/15 * * * *'
   } catch {
     return process.env.CRON_SCHEDULE || '*/15 * * * *'
