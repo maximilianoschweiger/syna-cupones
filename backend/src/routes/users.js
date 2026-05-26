@@ -11,7 +11,7 @@ const prisma = new PrismaClient()
 router.get('/', authMiddleware, adminMiddleware, async (req, res) => {
   try {
     const users = await prisma.user.findMany({
-      select: { id: true, email: true, name: true, role: true, active: true, createdAt: true, lastLogin: true },
+      select: { id: true, email: true, name: true, role: true, active: true, createdAt: true },
       orderBy: { createdAt: 'desc' }
     })
     res.json(users)
@@ -37,7 +37,7 @@ router.post('/', authMiddleware, adminMiddleware, [
 
     const hash = await bcrypt.hash(password, 12)
     const user = await prisma.user.create({
-      data: { email, name, passwordHash: hash, role },
+      data: { email, name, password: hash, role },
       select: { id: true, email: true, name: true, role: true, active: true, createdAt: true }
     })
     res.status(201).json(user)
@@ -75,7 +75,7 @@ router.post('/:id/reset-password', authMiddleware, adminMiddleware, [
 
   try {
     const hash = await bcrypt.hash(req.body.newPassword, 12)
-    await prisma.user.update({ where: { id: req.params.id }, data: { passwordHash: hash } })
+    await prisma.user.update({ where: { id: req.params.id }, data: { password: hash } })
     res.json({ message: 'Contraseña actualizada' })
   } catch (err) {
     if (err.code === 'P2025') return res.status(404).json({ message: 'Usuario no encontrado' })

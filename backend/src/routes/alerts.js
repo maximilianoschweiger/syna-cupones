@@ -22,8 +22,7 @@ router.get('/', authMiddleware, async (req, res) => {
         orderBy: { createdAt: 'desc' },
         include: {
           branch: { select: { code: true, name: true } },
-          email: { select: { subject: true, from: true } },
-          coupon: { select: { id: true } }
+          email: { select: { subject: true, senderEmail: true } },
         }
       }),
       prisma.alert.count({ where })
@@ -51,8 +50,8 @@ router.patch('/:id/dismiss', authMiddleware, async (req, res) => {
   }
 })
 
-// POST /api/alerts/dismiss-all
-router.post('/dismiss-all', authMiddleware, adminMiddleware, async (req, res) => {
+// PATCH /api/alerts/dismiss-all
+router.patch('/dismiss-all', authMiddleware, adminMiddleware, async (req, res) => {
   try {
     const { type } = req.body
     const result = await prisma.alert.updateMany({

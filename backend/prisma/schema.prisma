@@ -16,6 +16,7 @@ datasource db {
 enum Role {
   ADMIN
   USER
+  SISTEMAS
 }
 
 enum SignatureStatus {
@@ -37,6 +38,7 @@ enum AlertType {
   UNSIGNED_THRESHOLD
   NO_ATTACHMENT
   DUBIOUS_COUPON
+  DUPLICATE_COUPON
   MISSING_CLOSING
   IMAP_ERROR
   AI_ERROR

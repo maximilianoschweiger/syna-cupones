@@ -10,14 +10,16 @@ export function AuthProvider({ children }) {
   const navigate = useNavigate()
 
   useEffect(() => {
-    const token = localStorage.getItem('syna_token')
-    const savedUser = localStorage.getItem('syna_user')
+    // Check localStorage first (remember=true), then sessionStorage (remember=false)
+    const token   = localStorage.getItem('syna_token')   || sessionStorage.getItem('syna_token')
+    const savedUser = localStorage.getItem('syna_user')  || sessionStorage.getItem('syna_user')
     if (token && savedUser) {
       try {
         setUser(JSON.parse(savedUser))
         api.defaults.headers.common['Authorization'] = `Bearer ${token}`
       } catch {
         localStorage.clear()
+        sessionStorage.clear()
       }
     }
     setLoading(false)
@@ -26,12 +28,15 @@ export function AuthProvider({ children }) {
   const login = useCallback(async (email, password, remember = false) => {
     const { data } = await api.post('/auth/login', { email, password })
     const { token, user: userData } = data
+    const userJson = JSON.stringify(userData)
 
     if (remember) {
       localStorage.setItem('syna_token', token)
-      localStorage.setItem('syna_user', JSON.stringify(userData))
+      localStorage.setItem('syna_user', userJson)
     } else {
+      // Store both token and user in sessionStorage so page reload keeps session
       sessionStorage.setItem('syna_token', token)
+      sessionStorage.setItem('syna_user', userJson)
     }
 
     api.defaults.headers.common['Authorization'] = `Bearer ${token}`

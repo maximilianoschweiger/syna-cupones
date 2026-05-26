@@ -83,7 +83,7 @@ export const branchesAPI = {
   getById: (id) => api.get(`/branches/${id}`),
   getStats: (id, params) => api.get(`/branches/${id}/stats`, { params }),
   create: (data) => api.post('/branches', data),
-  update: (id, data) => api.put(`/branches/${id}`, data),
+  update: (id, data) => api.patch(`/branches/${id}`, data),
   delete: (id) => api.delete(`/branches/${id}`),
 }
 
@@ -92,7 +92,7 @@ export const emailsAPI = {
   getAll: (params) => api.get('/emails', { params }),
   getById: (id) => api.get(`/emails/${id}`),
   processManual: () => api.post('/emails/process'),
-  getStatus: () => api.get('/emails/imap-status'),
+  getStatus: () => api.get('/emails/imap/status'),
 }
 
 // ─── Alerts ────────────────────────────────────────────
@@ -106,7 +106,7 @@ export const alertsAPI = {
 export const usersAPI = {
   getAll: () => api.get('/users'),
   create: (data) => api.post('/users', data),
-  update: (id, data) => api.put(`/users/${id}`, data),
+  update: (id, data) => api.patch(`/users/${id}`, data),
   delete: (id) => api.delete(`/users/${id}`),
   resetPassword: (id) => api.post(`/users/${id}/reset-password`),
 }

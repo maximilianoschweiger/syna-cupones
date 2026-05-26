@@ -26,7 +26,7 @@ export default function Logs() {
     setLoading(true)
     try {
       const { data } = await logsAPI.getAll({ page, limit: 50, level: levelFilter })
-      setLogs(data.logs)
+      setLogs(data.data)
       setTotal(data.total)
     } catch {} finally {
       setLoading(false)

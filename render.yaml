@@ -34,10 +34,15 @@ services:
         sync: false
       - key: IMAP_TLS
         value: "true"
-      - key: OPENAI_API_KEY
+      - key: AI_PROVIDER
+        value: gemini
+      - key: GEMINI_API_KEY
         sync: false
-      - key: OPENAI_MODEL
-        value: gpt-4o
+      - key: AI_MODEL
+        value: gemini-1.5-flash
+      # OpenAI fallback (opcional)
+      # - key: OPENAI_API_KEY
+      #   sync: false
       - key: CLOUDINARY_CLOUD_NAME
         sync: false
       - key: CLOUDINARY_API_KEY

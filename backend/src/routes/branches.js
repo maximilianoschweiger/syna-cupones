@@ -9,33 +9,57 @@ const prisma = new PrismaClient()
 // GET /api/branches
 router.get('/', authMiddleware, async (req, res) => {
   try {
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+
     const branches = await prisma.branch.findMany({
       orderBy: { code: 'asc' },
       include: {
-        _count: { select: { coupons: true, emails: true } },
-        coupons: {
-          select: { signatureStatus: true },
-          where: {
-            createdAt: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) }
-          }
-        }
-      }
+        _count: { select: { emails: true } },
+      },
     })
 
-    const result = branches.map(b => {
-      const total = b.coupons.length
-      const signed = b.coupons.filter(c => c.signatureStatus === 'SIGNED').length
+    // Get coupon stats per branch using the denormalized branchId on Coupon
+    const couponStats = await prisma.coupon.groupBy({
+      by: ['branchId', 'signatureStatus'],
+      where: {
+        branchId:    { not: null },
+        isBatchClose: false,
+        createdAt:   { gte: thirtyDaysAgo },
+      },
+      _count: { id: true },
+    })
+
+    const totalCouponsPerBranch = await prisma.coupon.groupBy({
+      by: ['branchId'],
+      where: { branchId: { not: null }, isBatchClose: false },
+      _count: { id: true },
+    })
+
+    const statsMap = {}
+    for (const row of couponStats) {
+      if (!row.branchId) continue
+      if (!statsMap[row.branchId]) statsMap[row.branchId] = { total: 0, signed: 0 }
+      statsMap[row.branchId].total += row._count.id
+      if (row.signatureStatus === 'SIGNED') statsMap[row.branchId].signed += row._count.id
+    }
+
+    const totalMap = {}
+    for (const row of totalCouponsPerBranch) {
+      if (row.branchId) totalMap[row.branchId] = row._count.id
+    }
+
+    const result = branches.map((b) => {
+      const s = statsMap[b.id] || { total: 0, signed: 0 }
       return {
         ...b,
-        stats: {
-          totalCoupons: b._count.coupons,
-          totalEmails: b._count.emails,
-          signatureRate: total > 0 ? Math.round((signed / total) * 100) : 0,
-          recentTotal: total,
-          recentSigned: signed,
-        },
-        coupons: undefined,
         _count: undefined,
+        stats: {
+          totalCoupons:  totalMap[b.id] || 0,
+          totalEmails:   b._count.emails,
+          recentTotal:   s.total,
+          recentSigned:  s.signed,
+          signatureRate: s.total > 0 ? Math.round((s.signed / s.total) * 100) : 0,
+        },
       }
     })
 
@@ -51,16 +75,39 @@ router.get('/:id', authMiddleware, async (req, res) => {
     const branch = await prisma.branch.findUnique({
       where: { id: req.params.id },
       include: {
-        coupons: {
-          orderBy: { createdAt: 'desc' },
-          take: 20,
-          include: { attachment: { select: { cloudinaryUrl: true } } }
-        },
-        emails: { orderBy: { receivedAt: 'desc' }, take: 10 }
-      }
+        emails: { orderBy: { receivedAt: 'desc' }, take: 10 },
+      },
     })
     if (!branch) return res.status(404).json({ message: 'Sucursal no encontrada' })
-    res.json(branch)
+
+    // Coupons via denormalized branchId
+    const coupons = await prisma.coupon.findMany({
+      where:   { branchId: req.params.id, isBatchClose: false },
+      orderBy: { createdAt: 'desc' },
+      take:    20,
+      include: { attachment: { select: { imageUrl: true } } },
+    })
+
+    res.json({ ...branch, coupons })
+  } catch (err) {
+    res.status(500).json({ message: err.message })
+  }
+})
+
+// GET /api/branches/:id/stats
+router.get('/:id/stats', authMiddleware, async (req, res) => {
+  try {
+    const { days = 30 } = req.query
+    const from = new Date(Date.now() - Number(days) * 24 * 60 * 60 * 1000)
+
+    const [total, signed, unsigned, dubious] = await Promise.all([
+      prisma.coupon.count({ where: { branchId: req.params.id, isBatchClose: false, createdAt: { gte: from } } }),
+      prisma.coupon.count({ where: { branchId: req.params.id, signatureStatus: 'SIGNED',   isBatchClose: false, createdAt: { gte: from } } }),
+      prisma.coupon.count({ where: { branchId: req.params.id, signatureStatus: 'UNSIGNED', isBatchClose: false, createdAt: { gte: from } } }),
+      prisma.coupon.count({ where: { branchId: req.params.id, signatureStatus: 'DUBIOUS',  isBatchClose: false, createdAt: { gte: from } } }),
+    ])
+
+    res.json({ total, signed, unsigned, dubious, signatureRate: total > 0 ? Math.round((signed / total) * 100) : 0 })
   } catch (err) {
     res.status(500).json({ message: err.message })
   }
@@ -75,13 +122,11 @@ router.post('/', authMiddleware, adminMiddleware, [
   if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() })
 
   try {
-    const { code, name, email, address, phone } = req.body
+    const { code, name, email } = req.body
     const existing = await prisma.branch.findFirst({ where: { code } })
     if (existing) return res.status(409).json({ message: 'Ya existe una sucursal con ese código' })
 
-    const branch = await prisma.branch.create({
-      data: { code, name, email: email || null, address: address || null, phone: phone || null }
-    })
+    const branch = await prisma.branch.create({ data: { code, name, email: email || null } })
     res.status(201).json(branch)
   } catch (err) {
     res.status(500).json({ message: err.message })
@@ -91,16 +136,14 @@ router.post('/', authMiddleware, adminMiddleware, [
 // PATCH /api/branches/:id
 router.patch('/:id', authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    const { name, email, address, phone, active } = req.body
+    const { name, email, active } = req.body
     const branch = await prisma.branch.update({
       where: { id: req.params.id },
       data: {
-        ...(name !== undefined && { name }),
-        ...(email !== undefined && { email }),
-        ...(address !== undefined && { address }),
-        ...(phone !== undefined && { phone }),
+        ...(name   !== undefined && { name }),
+        ...(email  !== undefined && { email }),
         ...(active !== undefined && { active }),
-      }
+      },
     })
     res.json(branch)
   } catch (err) {

@@ -25,7 +25,7 @@ export default function Emails() {
     setLoading(true)
     try {
       const { data } = await emailsAPI.getAll({ page, limit: 20 })
-      setEmails(data.emails)
+      setEmails(data.data)
       setTotal(data.total)
     } catch {} finally {
       setLoading(false)

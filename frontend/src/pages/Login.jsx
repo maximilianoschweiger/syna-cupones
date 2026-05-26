@@ -19,7 +19,7 @@ export default function Login() {
     setLoading(true)
     try {
       await login(email, password, remember)
-      navigate('/dashboard')
+      // navigate is already called inside useAuth.login()
     } catch (err) {
       toast.error(err.response?.data?.message || 'Credenciales incorrectas')
     } finally {

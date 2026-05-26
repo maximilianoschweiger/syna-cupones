@@ -24,8 +24,9 @@ export default function Alerts() {
   const fetchAlerts = async () => {
     setLoading(true)
     try {
-      const { data } = await alertsAPI.getAll({ status: filter })
-      setAlerts(data)
+      const params = filter === 'active' ? { dismissed: false } : {}
+      const { data } = await alertsAPI.getAll(params)
+      setAlerts(data.data)
     } catch {} finally {
       setLoading(false)
     }
